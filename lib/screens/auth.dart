@@ -1,4 +1,9 @@
+import 'dart:io';
+
+import 'package:chat_app/widgets/user_image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
 final _firebase = FirebaseAuth.instance;
@@ -15,19 +20,25 @@ class _AuthScreenState extends State<AuthScreen> {
   var _islogin = false;
   var _enteredEmail = "";
 
+  File? _SelectedImage;
+  var _isUploading = false;
+
   var _enteredPassword = "";
 
   /// saved email and password for login and registered //////////////////////////////////////////////////////////////////
   void _submit() async {
     final isvalid = formkey.currentState!.validate();
 
-    if (!isvalid) {
+    if (!isvalid || !_islogin && _SelectedImage == null) {
       return;
     }
 
     formkey.currentState!.save();
 
     try {
+      setState(() {
+        _isUploading = true;
+      });
       if (_islogin) {
         _firebase.signInWithEmailAndPassword(
             email: _enteredEmail, password: _enteredPassword);
@@ -35,6 +46,22 @@ class _AuthScreenState extends State<AuthScreen> {
       } else {
         final userCredintial = await _firebase.createUserWithEmailAndPassword(
             email: _enteredEmail, password: _enteredPassword);
+
+        final storageref = FirebaseStorage.instance
+            .ref()
+            .child("user_image")
+            .child('${userCredintial.user!.uid}.jpg');
+        await storageref.putFile(_SelectedImage!);
+        final imageurl = await storageref.getDownloadURL();
+
+        FirebaseFirestore.instance
+            .collection("users")
+            .doc(userCredintial.user!.uid)
+            .set({
+          "username": "kalamush",
+          "email": _enteredEmail,
+          "image_url": imageurl
+        });
       }
     } on FirebaseAuthException catch (e) {
       if (e.code == "email-already-in-use") {
@@ -42,8 +69,14 @@ class _AuthScreenState extends State<AuthScreen> {
       }
       ScaffoldMessenger.of(context).clearSnackBars();
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(e.message ?? "Auth failed")));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? "Auth failed"),
+        ),
+      );
+      setState(() {
+        _isUploading = false;
+      });
     }
   }
 
@@ -72,6 +105,10 @@ class _AuthScreenState extends State<AuthScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (!_islogin)
+                            UserImagePicker(
+                                onselectImage: (image) =>
+                                    _SelectedImage = image),
                           TextFormField(
                             validator: (value) {
                               if (value == null ||
@@ -110,24 +147,30 @@ class _AuthScreenState extends State<AuthScreen> {
                           const SizedBox(
                             height: 12,
                           ),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer),
-                            onPressed: _submit,
-                            child:
-                                Text(_islogin ? "Kirish" : "Ro'yhatdan o'tish"),
+                          const SizedBox(
+                            height: 12,
                           ),
-                          TextButton(
-                              onPressed: () {
-                                setState(() {
-                                  _islogin = !_islogin;
-                                });
-                              },
-                              child: Text(_islogin
-                                  ? 'Hisob yaratish'
-                                  : ' Menda hisob mavjud '))
+                          if (_isUploading) const CircularProgressIndicator(),
+                          if (!_isUploading)
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer),
+                              onPressed: _submit,
+                              child: Text(
+                                  _islogin ? "Kirish" : "Ro'yhatdan o'tish"),
+                            ),
+                          if (!_isUploading)
+                            TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _islogin = !_islogin;
+                                  });
+                                },
+                                child: Text(_islogin
+                                    ? 'Hisob yaratish'
+                                    : ' Menda hisob mavjud '))
                         ],
                       )),
                 ),
