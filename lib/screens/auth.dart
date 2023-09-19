@@ -19,6 +19,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final formkey = GlobalKey<FormState>();
   var _islogin = false;
   var _enteredEmail = "";
+  var _enteredUsername = "";
 
   File? _SelectedImage;
   var _isUploading = false;
@@ -58,7 +59,7 @@ class _AuthScreenState extends State<AuthScreen> {
             .collection("users")
             .doc(userCredintial.user!.uid)
             .set({
-          "username": "kalamush",
+          "username": _enteredUsername,
           "email": _enteredEmail,
           "image_url": imageurl
         });
@@ -127,6 +128,21 @@ class _AuthScreenState extends State<AuthScreen> {
                               _enteredEmail = newValue!;
                             },
                           ),
+                          if (!_islogin)
+                            TextFormField(
+                              onSaved: (newValue) {
+                                _enteredUsername = newValue!;
+                              },
+                              decoration: const InputDecoration(
+                                  labelText: "Username kiriting"),
+                              validator: (value) {
+                                if (value == null ||
+                                    value.trim().isEmpty ||
+                                    value.trim().length < 4) {
+                                  return "Iltimos qovoqbosh to'g'ri username  kirit";
+                                }
+                              },
+                            ),
                           TextFormField(
                             validator: (value) {
                               if (value == null ||
